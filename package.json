@@ -1,0 +1,8 @@
+{
+  "name": "nda-review-engine-api",
+  "private": true,
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "@xmldom/xmldom": "^0.8.10"
+  }
+}

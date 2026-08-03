@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NDA Review Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.0.0/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #eaf3fc;
+    --panel: #ffffff;
+    --panel-2: #f4f6f8;
+    --border: #e2e8f0;
+    --text: #111827;
+    --muted: #6b7280;
+    --muted-2: #9aa3af;
+    --gold: #111827;
+    --navy: #2563eb;
+    --red: #dc2626;
+    --amber: #d97706;
+    --green: #16a34a;
+    --font-display: 'Inter', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  html, body {
+    margin:0; padding:0; color: var(--text); font-family: var(--font-body);
+    background: linear-gradient(180deg, #eaf3fc 0%, #edeffb 28%, #f3eef2 52%, #f8ede4 76%, #fbe9dd 100%);
+    background-repeat: no-repeat;
+    min-height: 100%;
+  }
+  ::selection { background: var(--gold); color: #ffffff; }
+
+  .app { max-width: 1180px; margin: 0 auto; padding: 0 0 60px; }
+
+  header.top { padding: 56px 28px 40px; text-align:center; }
+  .mark {
+    font-family: var(--font-mono); font-size:11px; color: var(--muted); background: var(--panel);
+    border:1px solid var(--border); border-radius:20px; padding:5px 13px; letter-spacing:0.08em; display:inline-block;
+  }
+  h1 { font-family: var(--font-display); font-weight:800; font-size:48px; margin:18px 0 14px; letter-spacing:-0.02em; line-height:1.08; }
+  .sub { font-size:16px; color: var(--muted); max-width: 640px; line-height:1.6; margin:0 auto; }
+
+  /* ---- how it works ---- */
+  .hiw { padding: 8px 28px 48px; }
+  .hiw-title { font-family: var(--font-display); font-weight:800; font-size:30px; margin:0 0 32px; letter-spacing:-0.01em; }
+  .hiw-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:20px; }
+  @media (max-width: 1000px) { .hiw-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 620px) { .hiw-grid { grid-template-columns: 1fr; } }
+  .hiw-card { background: var(--panel); border:1px solid var(--border); border-radius:18px; padding:26px 24px 30px; }
+  .hiw-num { width:34px; height:34px; border-radius:50%; background: var(--panel-2); color: var(--gold); font-family: var(--font-display); font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; margin-bottom:18px; }
+  .hiw-card h3 { font-family: var(--font-display); font-size:17px; font-weight:700; margin:0 0 8px; }
+  .hiw-card p { font-size:13px; color: var(--muted); line-height:1.55; margin:0 0 22px; }
+  .hiw-mock { background: var(--panel-2); border:1px solid var(--border); border-radius:12px; padding:16px; min-height:96px; display:flex; align-items:center; justify-content:center; }
+
+  /* mini mockup 1: upload */
+  .mock-upload { display:flex; align-items:center; gap:8px; background: var(--panel); border:1px dashed var(--border); border-radius:20px; padding:8px 14px 8px 10px; font-family: var(--font-mono); font-size:10.5px; color: var(--muted); }
+  .mock-upload svg { color: var(--muted-2); flex-shrink:0; }
+
+  /* mini mockup 2: rule row */
+  .mock-rule { width:100%; display:flex; align-items:center; gap:6px; background: var(--panel); border:1px solid var(--border); border-radius:8px; padding:9px 10px; }
+  .mock-rule .dot { width:12px; height:12px; border-radius:3px; border:1.5px solid var(--muted-2); flex-shrink:0; }
+  .mock-rule .lbl { flex:1; font-family: var(--font-mono); font-size:9.5px; color: var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mock-rule .badge { font-family: var(--font-mono); font-size:8px; text-transform:uppercase; border-radius:8px; padding:2px 6px; white-space:nowrap; }
+
+  /* mini mockup 3: findings summary */
+  .mock-findings { display:flex; gap:14px; }
+  .mock-findings div { text-align:center; }
+  .mock-findings .n { font-family: var(--font-display); font-size:20px; font-weight:700; }
+  .mock-findings .l { font-family: var(--font-mono); font-size:8px; color: var(--muted-2); text-transform:uppercase; }
+
+  /* mini mockup 4: sign + download */
+  .mock-sign { display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; }
+  .mock-sign svg:first-child { color: var(--gold); }
+  .mock-sign-files { display:flex; gap:8px; }
+  .mock-sign-files span { font-family: var(--font-mono); font-size:9px; color: var(--muted); background: var(--panel); border:1px solid var(--border); border-radius:6px; padding:3px 8px; }
+
+  section { padding: 40px 28px; border-bottom: 1px solid var(--border); }
+  .section-head { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
+  .section-num {
+    font-family: var(--font-display); font-size:15px; font-weight:700; color: var(--gold); background: var(--panel-2);
+    border-radius:50%; width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .section-title { font-family: var(--font-display); font-size:21px; font-weight:700; margin:0; }
+  .section-note { font-size:13.5px; color: var(--muted); line-height:1.65; margin: 0 0 24px; max-width: 640px; }
+
+  /* ---- upload ---- */
+  .dropzone {
+    margin:0 auto; border:2px dashed var(--border); border-radius:16px; padding:48px 34px; text-align:center;
+    cursor:pointer; transition: border-color .15s ease, background .15s ease; max-width:560px; background: var(--panel-2);
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--navy); background: rgba(37,99,235,0.04); }
+  .dz-icon { color: var(--muted-2); margin-bottom: 14px; }
+  .dropzone .dz-title { font-family: var(--font-display); font-weight:600; font-size:16px; margin-bottom:18px; color: var(--text); }
+  .dz-upload-btn {
+    font-family: var(--font-display); font-weight:600; font-size:13.5px; color:#ffffff; background: var(--gold);
+    border:none; border-radius:24px; padding:11px 22px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+  }
+  .dz-upload-btn:hover { background:#2d3648; }
+  .dropzone .dz-sub { font-size:11px; color: var(--muted-2); font-family: var(--font-mono); margin-top:14px; letter-spacing:0.06em; }
+  .file-badge {
+    margin:0 auto; display:none; align-items:center; gap:10px; background: var(--panel); border:1px solid var(--gold);
+    border-radius:12px; padding:12px 16px; max-width:560px; font-family: var(--font-mono); font-size:12.5px;
+  }
+
+  .trust-row { margin:20px auto 0; display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; max-width:560px; }
+  .trust-item { display:flex; align-items:center; gap:6px; font-size:12.5px; color: var(--muted); }
+  .trust-item svg { color: var(--green); flex-shrink:0; }
+  .trust-divider { width:1px; height:14px; background: var(--border); }
+  .file-badge .fb-name { color: var(--text); font-weight:600; }
+  .file-badge .fb-meta { color: var(--muted); }
+  .file-badge .fb-clear { margin-left:auto; color: var(--muted-2); cursor:pointer; border:1px solid var(--border); border-radius:4px; padding:3px 8px; background:none; font-family:var(--font-mono); font-size:11px; }
+
+  /* ---- rules ---- */
+  .rules-list { display:flex; flex-direction:column; gap:12px; max-width:900px; }
+  .rule-card { background: var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
+  .rule-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .rule-top input[type=checkbox] { accent-color: var(--gold); width:15px; height:15px; cursor:pointer; flex-shrink:0; }
+  .rule-summary-label { flex:1; min-width:140px; font-family: var(--font-display); font-size:14.5px; font-weight:600; color: var(--text); }
+  .rule-summary-badge { font-family: var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:0.03em; border-radius:12px; padding:3px 9px; white-space:nowrap; }
+  .rule-summary-badge.sev-critical { background: rgba(220,38,38,0.08); color: var(--red); }
+  .rule-summary-badge.sev-warning { background: rgba(217,119,6,0.10); color: var(--amber); }
+  .rule-summary-badge.sev-note { background: rgba(37,99,235,0.08); color: var(--navy); }
+  .rule-summary-badge.act-flag { background: var(--panel-2); color: var(--muted); }
+  .rule-summary-badge.act-strike { background: rgba(220,38,38,0.08); color: var(--red); }
+  .rule-summary-badge.act-suggest { background: rgba(22,163,74,0.08); color: var(--green); }
+  .rule-expand-btn { background:none; border:1px solid var(--border); color: var(--muted); border-radius:5px; padding:5px 12px; cursor:pointer; font-size:12px; font-family: var(--font-mono); }
+  .rule-expand-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .rule-del-btn { background:none; border:1px solid var(--border); color: var(--muted-2); border-radius:5px; padding:5px 9px; cursor:pointer; font-size:12px; }
+  .rule-del-btn:hover { border-color: var(--red); color: var(--red); }
+  .rule-body { margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
+  .rule-label-input {
+    width:100%; background: var(--panel-2); border:1px solid var(--border); border-radius:6px; color: var(--text);
+    font-family: var(--font-display); font-size:14px; font-weight:600; padding:8px 10px; outline:none;
+  }
+  .rule-label-input:focus { border-color: var(--gold); }
+  .rule-grid { display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px; margin-bottom:10px; }
+  @media (max-width: 800px) { .rule-grid { grid-template-columns: 1fr 1fr; } }
+  .rule-field label { display:block; font-family: var(--font-mono); font-size:9.5px; color: var(--muted-2); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px; }
+  .rule-field select, .rule-field input[type=text] {
+    width:100%; background: var(--panel-2); border:1px solid var(--border); color: var(--text);
+    font-family: var(--font-mono); font-size:11.5px; padding:7px 8px; border-radius:5px; outline:none;
+  }
+  .rule-field select:focus, .rule-field input:focus { border-color: var(--gold); }
+  .rule-guidance, .rule-suggest { margin-top:8px; }
+  .rule-guidance textarea, .rule-suggest textarea {
+    width:100%; background: var(--panel-2); border:1px solid var(--border); color: var(--text);
+    font-family: var(--font-body); font-size:12px; padding:8px 9px; border-radius:5px; outline:none; resize:vertical; min-height:44px;
+  }
+  .rule-guidance label, .rule-suggest label { display:block; font-family: var(--font-mono); font-size:9.5px; color: var(--muted-2); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px; }
+
+  .add-rule-btn, .secondary-btn {
+    font-family: var(--font-mono); font-size:12px; color: var(--gold); background:none; border:1px solid var(--gold);
+    border-radius:8px; padding:9px 16px; cursor:pointer; margin-top:6px;
+  }
+  .add-rule-btn:hover, .secondary-btn:hover { background: rgba(17,24,39,0.05); }
+
+  .rules-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .rules-toolbar button {
+    font-family: var(--font-mono); font-size:11.5px; color: var(--muted); background: var(--panel); border:1px solid var(--border);
+    border-radius:6px; padding:8px 13px; cursor:pointer;
+  }
+  .rules-toolbar button:hover { border-color: var(--gold); color: var(--gold); }
+  .rules-toolbar button.primary-tool { border-color: var(--gold); color: var(--gold); }
+  .import-status { font-family: var(--font-mono); font-size:11.5px; color: var(--muted-2); margin-top:8px; max-width:700px; line-height:1.6; }
+  .import-status.ok { color: var(--gold); }
+  .import-status.err { color: var(--red); }
+
+  .primary-btn {
+    font-family: var(--font-display); font-weight:600; font-size:15px; color:#ffffff; background: var(--gold);
+    border:none; border-radius:28px; padding:14px 32px; cursor:pointer; transition: background .15s ease, transform .1s ease;
+  }
+  .primary-btn:hover:not(:disabled) { background:#2d3648; }
+  .primary-btn:active:not(:disabled) { transform: scale(0.98); }
+  .primary-btn:disabled { background: var(--panel-2); color: var(--muted-2); cursor:not-allowed; border:1px solid var(--border); }
+
+  /* ---- findings ---- */
+  .findings-summary { display:flex; gap:28px; margin-bottom:22px; }
+  .fs-stat { text-align:left; }
+  .fs-stat .n { font-family: var(--font-mono); font-size:20px; font-weight:600; }
+  .fs-stat .l { font-family: var(--font-mono); font-size:9.5px; color: var(--muted-2); text-transform:uppercase; letter-spacing:0.06em; }
+  .fs-stat.critical .n { color: var(--red); }
+  .fs-stat.warning .n { color: var(--amber); }
+  .fs-stat.note .n { color: var(--navy); }
+
+  .findings-list { display:flex; flex-direction:column; gap:10px; max-width:820px; }
+  .finding-row { background: var(--panel); border:1px solid var(--border); border-left:3px solid var(--muted-2); border-radius:10px; padding:12px 14px; }
+  .finding-row.critical { border-left-color: var(--red); }
+  .finding-row.warning { border-left-color: var(--amber); }
+  .finding-row.note { border-left-color: var(--navy); }
+  .finding-top { display:flex; align-items:center; gap:9px; margin-bottom:5px; flex-wrap:wrap; }
+  .finding-label { font-family: var(--font-display); font-weight:600; font-size:14px; }
+  .finding-badge { font-family: var(--font-mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.05em; padding:2px 7px; border-radius:3px; border:1px solid var(--border); color: var(--muted); }
+  .finding-snippet { font-family: var(--font-mono); font-size:11.5px; color: var(--muted); line-height:1.5; }
+  .finding-guidance { font-size:12px; color: var(--text); margin-top:6px; line-height:1.5; }
+
+  .lint-section { margin-top:22px; padding-top:18px; border-top:1px dashed var(--border); }
+  .lint-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .lint-tag { font-family: var(--font-mono); font-size:10px; color: var(--bg); background: var(--amber); border-radius:3px; padding:2px 7px; letter-spacing:0.05em; font-weight:600; }
+  .lint-title { font-family: var(--font-display); font-size:14.5px; font-weight:600; }
+  .lint-list { display:flex; flex-direction:column; gap:8px; }
+  .lint-row { background: rgba(217,119,6,0.07); border:1px solid var(--amber); border-radius:10px; padding:10px 13px; font-size:12px; line-height:1.55; color: var(--text); }
+  .lint-row b { color: var(--amber); }
+  .lint-clean { font-family: var(--font-mono); font-size:11.5px; color: var(--gold); }
+
+  /* ---- sign & finalize ---- */
+  .finalize-grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; max-width:820px; }
+  @media (max-width: 700px) { .finalize-grid { grid-template-columns: 1fr; } }
+  .field-group label { display:block; font-family: var(--font-mono); font-size:10px; color: var(--muted-2); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px; }
+  .field-group input[type=text] {
+    width:100%; background: var(--panel); border:1px solid var(--border); color: var(--text);
+    font-family: var(--font-body); font-size:13.5px; padding:10px 12px; border-radius:6px; outline:none; margin-bottom:14px;
+  }
+  .field-group input:focus { border-color: var(--gold); }
+  .sig-pad-wrap { background: var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px; }
+  .sig-pad-wrap canvas { width:100%; height:120px; background:#fff; border-radius:4px; cursor:crosshair; touch-action:none; }
+  .sig-or { display:flex; align-items:center; gap:10px; margin:12px 0; font-family: var(--font-mono); font-size:10px; color: var(--muted-2); text-transform:uppercase; letter-spacing:0.06em; }
+  .sig-or::before, .sig-or::after { content:''; flex:1; height:1px; background: var(--border); }
+  .sig-upload-btn { width:100%; font-family: var(--font-mono); font-size:11.5px; color: var(--muted); background: var(--panel); border:1px dashed var(--border); border-radius:12px; padding:12px; cursor:pointer; text-align:center; }
+  .sig-upload-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .sig-preview-wrap { display:none; background: var(--panel); border:1px solid var(--gold); border-radius:12px; padding:10px; text-align:center; }
+  .sig-preview-wrap img { max-height:100px; max-width:100%; background:#fff; border-radius:4px; padding:6px; }
+  .sig-preview-actions { margin-top:8px; }
+  .sig-preview-actions button { font-family: var(--font-mono); font-size:10.5px; color: var(--muted); background:none; border:1px solid var(--border); border-radius:4px; padding:5px 10px; cursor:pointer; }
+  .sig-actions { display:flex; justify-content:space-between; margin-top:8px; }
+  .sig-actions button { font-family: var(--font-mono); font-size:10.5px; color: var(--muted); background:none; border:1px solid var(--border); border-radius:4px; padding:5px 10px; cursor:pointer; }
+
+  .status-note { font-family: var(--font-mono); font-size:11.5px; color: var(--muted-2); margin-top:14px; max-width:700px; line-height:1.6; }
+  .status-note.ok { color: var(--gold); }
+
+  footer.foot { padding: 20px 28px 0; font-family: var(--font-mono); font-size:10px; color: var(--muted-2); line-height:1.7; }
+
+  /* ---- tabs ---- */
+  .tab-nav { display:flex; gap:4px; padding: 0 28px; border-bottom:1px solid var(--border); }
+  .tab-btn {
+    font-family: var(--font-display); font-weight:600; font-size:14px; color: var(--muted); background:none;
+    border:none; border-bottom:2px solid transparent; padding:14px 6px; margin-right:22px; cursor:pointer;
+  }
+  .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  /* ---- contracts dashboard ---- */
+  .dash-layout { display:grid; grid-template-columns: 1fr 340px; gap:20px; padding: 26px 28px; align-items:start; }
+  @media (max-width: 900px) { .dash-layout { grid-template-columns: 1fr; } }
+  .dash-panel { background: var(--panel); border:1px solid var(--border); border-radius:16px; padding:20px; }
+  .dash-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:12px; }
+  .dash-head h2 { font-family: var(--font-display); font-size:22px; margin:0; }
+  .new-contract-btn {
+    font-family: var(--font-display); font-weight:600; font-size:13.5px; color:#ffffff; background: var(--gold);
+    border:none; border-radius:24px; padding:11px 20px; cursor:pointer;
+  }
+  .new-contract-btn:hover { background:#2d3648; }
+
+  .contract-row {
+    display:flex; align-items:center; gap:14px; padding:15px 4px; border-bottom:1px solid var(--border);
+  }
+  .contract-row:last-child { border-bottom:none; }
+  .contract-name { flex:1; font-family: var(--font-display); font-size:15px; font-weight:600; }
+  .contract-date { font-family: var(--font-mono); font-size:10.5px; color: var(--muted-2); margin-top:2px; }
+  .status-pill {
+    display:inline-flex; align-items:center; gap:6px; font-family: var(--font-mono); font-size:11px;
+    text-transform:uppercase; letter-spacing:0.04em; border-radius:20px; padding:6px 13px; white-space:nowrap;
+  }
+  .status-pill.review { background: rgba(37,99,235,0.10); color: var(--navy); border:1px solid var(--navy); }
+  .status-pill.sign { background: rgba(217,119,6,0.10); color: var(--amber); border:1px solid var(--amber); }
+  .status-pill.completed { background: rgba(22,163,74,0.10); color: var(--green); border:1px solid var(--green); }
+  .contract-del { background:none; border:none; color: var(--muted-2); cursor:pointer; font-size:15px; padding:4px 8px; }
+  .contract-del:hover { color: var(--red); }
+  .dash-empty { font-family: var(--font-mono); font-size:12.5px; color: var(--muted-2); padding: 20px 4px; }
+
+  .insights-title { display:flex; align-items:center; gap:8px; font-family: var(--font-display); font-size:17px; font-weight:600; margin-bottom:16px; }
+  .donut-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; }
+  .donut { width:170px; height:170px; border-radius:50%; position:relative; }
+  .donut::after { content:''; position:absolute; inset:26px; background: var(--panel); border-radius:50%; }
+  .donut-center { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; z-index:1; }
+  .donut-center .n { font-family: var(--font-display); font-size:22px; font-weight:700; }
+  .donut-center .l { font-family: var(--font-mono); font-size:9px; color: var(--muted-2); text-transform:uppercase; }
+  .donut-legend { display:flex; flex-direction:column; gap:8px; width:100%; }
+  .donut-legend-row { display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size:11.5px; color: var(--muted); }
+  .donut-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .donut-legend-row .lv { margin-left:auto; color: var(--text); }
+
+  /* ---- developer api ---- */
+  .api-layout { display:grid; grid-template-columns: 1fr 1fr; gap:20px; padding: 26px 28px; align-items:start; }
+  @media (max-width: 900px) { .api-layout { grid-template-columns: 1fr; } }
+  .api-panel { background: var(--panel); border:1px solid var(--border); border-radius:16px; padding:24px; }
+  .api-panel h3 { font-family: var(--font-display); font-size:16px; margin:0 0 6px; }
+  .api-panel .api-sub { font-size:12.5px; color: var(--muted); margin-bottom:18px; line-height:1.6; }
+  .gen-key-btn {
+    font-family: var(--font-display); font-weight:600; font-size:13.5px; color:#ffffff; background: var(--gold);
+    border:none; border-radius:24px; padding:11px 20px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+  }
+  .gen-key-btn:hover:not(:disabled) { background:#2d3648; }
+  .gen-key-btn:disabled { background: var(--muted-2); cursor:not-allowed; }
+  .key-display { display:none; margin-top:16px; }
+  .key-display.show { display:block; }
+  .key-value-row { display:flex; align-items:center; gap:8px; background: var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .key-value { flex:1; font-family: var(--font-mono); font-size:11.5px; color: var(--text); word-break:break-all; }
+  .key-copy-btn { font-family: var(--font-mono); font-size:11px; color: var(--muted); background: var(--panel); border:1px solid var(--border); border-radius:6px; padding:6px 10px; cursor:pointer; flex-shrink:0; }
+  .key-copy-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .key-warning { font-family: var(--font-mono); font-size:10.5px; color: var(--red); margin-top:8px; }
+  .api-status { font-family: var(--font-mono); font-size:11.5px; color: var(--muted-2); margin-top:10px; }
+
+  .code-block { background:#0d1117; color:#c9d1d9; border-radius:10px; padding:16px; font-family: var(--font-mono); font-size:11px; line-height:1.6; overflow-x:auto; white-space:pre; margin: 0 0 14px; }
+  .api-endpoint-row { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+  .api-method-badge { font-family: var(--font-mono); font-size:10.5px; font-weight:600; color: var(--green); background: rgba(22,163,74,0.10); border:1px solid var(--green); border-radius:6px; padding:3px 8px; }
+  .api-endpoint-path { font-family: var(--font-mono); font-size:12.5px; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>NDA Review Engine</h1>
+    <div class="sub">
+      Upload a non-disclosure agreement, define the clause-level rules your firm reviews against, and get back a
+      tracked-changes redline plus a clean, signed execution copy — all generated in your browser. The rule set
+      below is a generic starting point; edit, remove, or add rules to match your own firm's standards.
+    </div>
+  </header>
+
+  <div class="hiw">
+    <h2 class="hiw-title">How it works</h2>
+    <div class="hiw-grid">
+      <div class="hiw-card">
+        <div class="hiw-num">1</div>
+        <h3>Upload your NDA</h3>
+        <p>Drop in a .docx file. It's read entirely in your browser — nothing is sent to a server at this step.</p>
+        <div class="hiw-mock">
+          <div class="mock-upload">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4L7 9M12 4l5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            nda.docx
+          </div>
+        </div>
+      </div>
+
+      <div class="hiw-card">
+        <div class="hiw-num">2</div>
+        <h3>Set your standards</h3>
+        <p>Start from 14 built-in rules or upload your own — what to flag, what to strike, what to replace.</p>
+        <div class="hiw-mock">
+          <div class="mock-rule">
+            <span class="dot"></span>
+            <span class="lbl">Perpetual term</span>
+            <span class="badge" style="background:rgba(220,38,38,0.08); color:#dc2626;">Critical</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hiw-card">
+        <div class="hiw-num">3</div>
+        <h3>Run the review</h3>
+        <p>Every rule runs against every clause, plus an automated pass that flags over-broad edits.</p>
+        <div class="hiw-mock">
+          <div class="mock-findings">
+            <div><div class="n" style="color:#dc2626;">3</div><div class="l">Critical</div></div>
+            <div><div class="n" style="color:#d97706;">5</div><div class="l">Warning</div></div>
+            <div><div class="n" style="color:#2563eb;">1</div><div class="l">Note</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hiw-card">
+        <div class="hiw-num">4</div>
+        <h3>Sign &amp; generate</h3>
+        <p>Draw or upload a signature, then download a redlined .docx with real tracked changes plus a signed PDF.</p>
+        <div class="hiw-mock">
+          <div class="mock-sign">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-4 4 2 6-2s3 3 5-1 3 2 5-3"/></svg>
+            <div class="mock-sign-files"><span>.docx</span><span>.pdf</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" id="reviewTabBtn">Review Console</button>
+    <button class="tab-btn" id="contractsTabBtn">All Contracts</button>
+    <button class="tab-btn" id="apiTabBtn">Developer API</button>
+  </div>
+
+  <div class="tab-content active" id="reviewTabContent">
+  <section style="text-align:center;">
+    <div class="section-head" style="justify-content:center;"><span class="section-num">1</span><span class="section-title">Upload the NDA</span></div>
+    <div class="section-note" style="margin-left:auto; margin-right:auto;">Accepts a .docx file. Nothing is uploaded anywhere — the file is read and processed entirely in your browser.</div>
+    <div class="dropzone" id="dropzone">
+      <svg class="dz-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4L7 9M12 4l5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <div class="dz-title">Drag and drop, or click to upload</div>
+      <button type="button" class="dz-upload-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4L7 9M12 4l5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Upload file
+      </button>
+      <div class="dz-sub">.DOCX ONLY</div>
+    </div>
+    <input type="file" id="fileInput" accept=".docx" style="display:none;" />
+    <div class="file-badge" id="fileBadge">
+      <span class="fb-name" id="fbName"></span>
+      <span class="fb-meta" id="fbMeta"></span>
+      <button class="fb-clear" id="fbClear">Remove</button>
+    </div>
+    <div class="trust-row">
+      <div class="trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Runs entirely in your browser</div>
+      <div class="trust-divider"></div>
+      <div class="trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Nothing uploaded to a server</div>
+      <div class="trust-divider"></div>
+      <div class="trust-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Real Word tracked changes</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">2</span><span class="section-title">Review rules</span></div>
+    <div class="section-note">
+      These are the standards your firm reviews NDAs against. Click "Edit" on any rule to change what it looks
+      for and what happens when it's found — no legal-tech background needed. Rather than typing rules in one
+      at a time, you can also upload your own requirements as a CSV or a previously exported JSON file.
+    </div>
+    <div class="rules-toolbar">
+      <button class="primary-tool" id="uploadRulesBtn">Upload requirements (CSV or JSON)</button>
+      <button id="downloadTemplateBtn">Download CSV template</button>
+      <button id="exportRulesBtn">Export current rules (JSON)</button>
+    </div>
+    <input type="file" id="rulesFileInput" accept=".csv,.json" style="display:none;" />
+    <div class="import-status" id="importStatus"></div>
+    <div class="rules-list" id="rulesList"></div>
+    <button class="add-rule-btn" id="addRuleBtn">+ Add rule</button>
+    <button class="secondary-btn" id="resetRulesBtn" style="margin-left:10px;">Reset to defaults</button>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">3</span><span class="section-title">Run review</span></div>
+    <div class="section-note">Scans the uploaded document against every enabled rule above, then runs an automated lint pass over the resulting redline to flag edits that look over-broad.</div>
+    <button class="primary-btn" id="runReviewBtn" disabled>Run Review</button>
+    <div class="status-note" id="reviewStatus"></div>
+
+    <div id="findingsSection" style="display:none; margin-top:22px;">
+      <div class="findings-summary" id="findingsSummary"></div>
+      <div class="findings-list" id="findingsList"></div>
+      <div class="lint-section">
+        <div class="lint-head"><span class="lint-tag">AUTOMATED LINT</span><span class="lint-title">Checking the redline itself for over-broad edits</span></div>
+        <div id="lintList"></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="border-bottom:none;">
+    <div class="section-head"><span class="section-num">4</span><span class="section-title">Sign &amp; generate</span></div>
+    <div class="section-note">Produces two files: a redlined .docx with real Word tracked changes, and a clean, signed execution-copy PDF.</div>
+    <div class="finalize-grid">
+      <div class="field-group">
+        <label>Associate name</label>
+        <input type="text" id="assocName" placeholder="Jane Doe" />
+        <label>Title</label>
+        <input type="text" id="assocTitle" placeholder="Associate, Private Equity" />
+        <label>Date</label>
+        <input type="text" id="assocDate" />
+      </div>
+      <div class="field-group">
+        <label>Signature</label>
+        <div class="sig-pad-wrap" id="sigDrawWrap">
+          <canvas id="sigPad"></canvas>
+          <div class="sig-actions">
+            <button id="sigClearBtn">Clear</button>
+            <span style="font-family:var(--font-mono); font-size:10px; color:var(--muted-2);">draw with mouse or touch</span>
+          </div>
+        </div>
+        <div class="sig-or">or</div>
+        <button type="button" class="sig-upload-btn" id="sigUploadBtn">Upload a signature image (PNG or JPG)</button>
+        <input type="file" id="sigFileInput" accept="image/png,image/jpeg" style="display:none;" />
+        <div class="sig-preview-wrap" id="sigPreviewWrap">
+          <img id="sigPreviewImg" alt="Uploaded signature" />
+          <div class="sig-preview-actions"><button id="sigPreviewClearBtn">Remove, use drawn signature instead</button></div>
+        </div>
+      </div>
+    </div>
+    <button class="primary-btn" id="generateBtn" disabled style="margin-top:18px;">Generate Documents</button>
+    <div class="status-note" id="generateStatus"></div>
+  </section>
+  </div>
+
+  <div class="tab-content" id="contractsTabContent">
+    <div class="dash-layout">
+      <div class="dash-panel">
+        <div class="dash-head">
+          <h2>All Contracts</h2>
+          <button class="new-contract-btn" id="newContractBtn">New Contract</button>
+        </div>
+        <div id="contractsList"></div>
+      </div>
+      <div class="dash-panel">
+        <div class="insights-title">Insights</div>
+        <div style="font-family:var(--font-mono); font-size:10px; color:var(--muted-2); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">Findings by severity, all contracts</div>
+        <div class="donut-wrap" id="insightsDonutWrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="apiTabContent">
+    <div class="api-layout">
+      <div class="api-panel">
+        <h3>API Key</h3>
+        <div class="api-sub">Generate a key to call the review engine directly from your own systems. Keys are shown once — save it immediately.</div>
+        <button class="gen-key-btn" id="genKeyBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Generate key
+        </button>
+        <div class="api-status" id="apiKeyStatus"></div>
+        <div class="key-display" id="keyDisplay">
+          <div class="key-value-row">
+            <span class="key-value" id="keyValue"></span>
+            <button class="key-copy-btn" id="keyCopyBtn">Copy</button>
+          </div>
+          <div class="key-warning">Save this now — you won't be able to see it again.</div>
+        </div>
+      </div>
+
+      <div class="api-panel">
+        <h3>Documentation</h3>
+        <div class="api-sub">An NDA review API made to be plugged into your platform with minimal effort. Client SDKs (Node.js, Python), an OpenAPI spec, and a Postman collection are available in this project's <code>sdk/</code> folder.</div>
+        <div class="api-endpoint-row"><span class="api-method-badge">POST</span><span class="api-endpoint-path">/api/review</span></div>
+        <div class="code-block" id="curlExample"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot">
+    Runs entirely client-side — no document, rule, or signature data leaves your browser. Redlines operate at
+    clause (paragraph) granularity. Generated documents are a starting point for attorney review, not a
+    substitute for one.
+  </footer>
+</div>
+
+<script>
+(function(){
+
+  var WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+  function getElementsByLocalName(root, name){
+    var out = [];
+    var all = root.getElementsByTagName('*');
+    for (var i=0;i<all.length;i++){ if (all[i].localName === name) out.push(all[i]); }
+    return out;
+  }
+  function paragraphText(pEl){
+    var ts = getElementsByLocalName(pEl, 't');
+    return ts.map(function(t){ return t.textContent; }).join('');
+  }
+  function extractParagraphs(xmlDoc){
+    var body = getElementsByLocalName(xmlDoc, 'body')[0];
+    var ps = getElementsByLocalName(body, 'p');
+    return ps.map(function(p,i){ return { index:i, el:p, text: paragraphText(p) }; });
+  }
+  function testRule(text, rule){
+    var hit;
+    if (rule.matchType === 'regex') {
+      try { hit = new RegExp(rule.pattern, 'i').test(text); } catch(e){ hit = false; }
+    } else {
+      hit = text.toLowerCase().indexOf(String(rule.pattern).toLowerCase()) !== -1;
+    }
+    return rule.matchWhen === 'absent' ? !hit : hit;
+  }
+  function testAbsentAgainstFullText(fullText, rule){
+    if (rule.matchType === 'regex') {
+      try { return new RegExp(rule.pattern, 'i').test(fullText); } catch(e){ return false; }
+    }
+    return fullText.toLowerCase().indexOf(String(rule.pattern).toLowerCase()) !== -1;
+  }
+  function runRules(paragraphs, rules){
+    var findings = [];
+    var fullText = paragraphs.map(function(p){return p.text;}).join('\n');
+    rules.filter(function(r){return r.enabled;}).forEach(function(rule){
+      if (rule.matchWhen === 'absent') {
+        var present = testAbsentAgainstFullText(fullText, rule);
+        if (!present) findings.push({ rule: rule, paragraphIndex: null, snippet: null });
+      } else {
+        paragraphs.forEach(function(p){
+          if (testRule(p.text, rule)) findings.push({ rule: rule, paragraphIndex: p.index, snippet: p.text.slice(0,140) });
+        });
+      }
+    });
+    return findings;
+  }
+  function findingsByParagraph(findings){
+    var map = {};
+    findings.forEach(function(f){
+      if (f.paragraphIndex === null) return;
+      if (!map[f.paragraphIndex]) map[f.paragraphIndex] = [];
+      map[f.paragraphIndex].push(f);
+    });
+    return map;
+  }
+  function markRunsDeleted(pEl, xmlDoc, author, dateStr){
+    var runs = getElementsByLocalName(pEl, 'r');
+    runs.forEach(function(r){
+      var ts = getElementsByLocalName(r, 't');
+      ts.forEach(function(t){
+        var delText = xmlDoc.createElementNS(WORD_NS, 'w:delText');
+        delText.setAttribute('xml:space','preserve');
+        delText.textContent = t.textContent;
+        t.parentNode.replaceChild(delText, t);
+      });
+      var del = xmlDoc.createElementNS(WORD_NS, 'w:del');
+      del.setAttribute('w:id', String(Math.floor(Math.random()*1000000)));
+      del.setAttribute('w:author', author);
+      del.setAttribute('w:date', dateStr);
+      r.parentNode.insertBefore(del, r);
+      del.appendChild(r);
+    });
+  }
+  function buildInsertedParagraph(xmlDoc, origPEl, text, author, dateStr){
+    var p = xmlDoc.createElementNS(WORD_NS, 'w:p');
+    var origPPr = getElementsByLocalName(origPEl, 'pPr')[0];
+    if (origPPr) p.appendChild(origPPr.cloneNode(true));
+    var ins = xmlDoc.createElementNS(WORD_NS, 'w:ins');
+    ins.setAttribute('w:id', String(Math.floor(Math.random()*1000000)));
+    ins.setAttribute('w:author', author);
+    ins.setAttribute('w:date', dateStr);
+    var r = xmlDoc.createElementNS(WORD_NS, 'w:r');
+    var t = xmlDoc.createElementNS(WORD_NS, 'w:t');
+    t.setAttribute('xml:space','preserve');
+    t.textContent = text;
+    r.appendChild(t);
+    ins.appendChild(r);
+    p.appendChild(ins);
+    return p;
+  }
+  function highlightRuns(pEl, xmlDoc){
+    var runs = getElementsByLocalName(pEl, 'r');
+    runs.forEach(function(r){
+      var rPr = getElementsByLocalName(r, 'rPr')[0];
+      if (!rPr){ rPr = xmlDoc.createElementNS(WORD_NS,'w:rPr'); r.insertBefore(rPr, r.firstChild); }
+      var hl = xmlDoc.createElementNS(WORD_NS, 'w:highlight');
+      hl.setAttribute('w:val','yellow');
+      rPr.appendChild(hl);
+    });
+  }
+  function buildRedlinedXml(xmlDoc, paragraphs, findings, author){
+    var dateStr = new Date().toISOString();
+    var byPara = findingsByParagraph(findings);
+    for (var i=paragraphs.length-1; i>=0; i--){
+      var p = paragraphs[i];
+      var pFindings = byPara[p.index];
+      if (!pFindings || !pFindings.length) continue;
+      var editFindings = pFindings.filter(function(f){ return f.rule.action==='strike' || f.rule.action==='suggest'; });
+      var flagOnly = pFindings.filter(function(f){ return f.rule.action==='flag'; });
+      if (editFindings.length){
+        var withSuggestion = editFindings.filter(function(f){ return f.rule.action==='suggest' && f.rule.suggestedText; })[0];
+        if (withSuggestion){
+          var newP = buildInsertedParagraph(xmlDoc, p.el, withSuggestion.rule.suggestedText, author, dateStr);
+          p.el.parentNode.insertBefore(newP, p.el.nextSibling);
+        }
+        markRunsDeleted(p.el, xmlDoc, author, dateStr);
+      } else if (flagOnly.length){
+        highlightRuns(p.el, xmlDoc);
+      }
+    }
+  }
+  function computeFinalText(paragraphs, findings){
+    var byPara = findingsByParagraph(findings);
+    var out = [];
+    paragraphs.forEach(function(p){
+      var pFindings = byPara[p.index];
+      if (pFindings && pFindings.length){
+        var editFindings = pFindings.filter(function(f){ return f.rule.action==='strike' || f.rule.action==='suggest'; });
+        if (editFindings.length){
+          var withSuggestion = editFindings.filter(function(f){ return f.rule.action==='suggest' && f.rule.suggestedText; })[0];
+          if (withSuggestion) out.push(withSuggestion.rule.suggestedText);
+          return;
+        }
+      }
+      out.push(p.text);
+    });
+    return out;
+  }
+
+  // ---------- automated lint: flags over-broad edits in the redline itself ----------
+  function median(nums){
+    var s = nums.slice().sort(function(a,b){return a-b;});
+    var n = s.length;
+    if (!n) return 0;
+    return n % 2 ? s[(n-1)/2] : (s[n/2-1]+s[n/2])/2;
+  }
+  function wordCount(s){ return (s.trim().match(/\S+/g) || []).length; }
+
+  function runLint(paragraphs, rules, findings){
+    var warnings = [];
+    var lengths = paragraphs.map(function(p){ return wordCount(p.text); }).filter(function(n){ return n>0; });
+    var medianLen = median(lengths) || 1;
+    var editRules = rules.filter(function(r){ return r.enabled && (r.action==='strike' || r.action==='suggest'); });
+
+    editRules.forEach(function(rule){
+      if (rule.matchWhen === 'absent') return;
+      var matchCount = paragraphs.filter(function(p){ return testRule(p.text, rule); }).length;
+      var frac = matchCount / paragraphs.length;
+      if (frac > 0.25 && matchCount > 1) {
+        warnings.push({ type:'broad-pattern', rule: rule,
+          message: 'Pattern "' + rule.pattern + '" (rule "' + rule.label + '") matched ' + matchCount + ' of ' + paragraphs.length +
+            ' clauses (' + Math.round(frac*100) + '%) with a destructive action (' + rule.action + '). Likely over-broad \u2014 consider narrowing the pattern or switching the action to "flag only".' });
+      }
+    });
+
+    editRules.forEach(function(rule){
+      if (rule.matchType === 'keyword' && rule.pattern && rule.pattern.trim().length < 4) {
+        warnings.push({ type:'short-pattern', rule: rule,
+          message: 'Pattern "' + rule.pattern + '" (rule "' + rule.label + '") is very short for a destructive action (' + rule.action + '). Short patterns tend to match unintended text.' });
+      }
+    });
+
+    findings.forEach(function(f){
+      if (f.paragraphIndex === null || (f.rule.action !== 'strike' && f.rule.action !== 'suggest')) return;
+      var p = paragraphs[f.paragraphIndex];
+      var wc = wordCount(p.text);
+      if (wc > medianLen * 2.5 && wc > 20) {
+        warnings.push({ type:'long-clause', rule: f.rule, paragraphIndex: f.paragraphIndex,
+          message: 'Rule "' + f.rule.label + '" strikes clause ' + f.paragraphIndex + ' (' + wc + ' words, vs. a ' + Math.round(medianLen) + '-word median across the document). Verify the whole clause should be affected, not just the matched phrase.' });
+      }
+    });
+
+    findings.forEach(function(f){
+      if (f.paragraphIndex === null || f.rule.action !== 'suggest' || !f.rule.suggestedText) return;
+      var p = paragraphs[f.paragraphIndex];
+      var origWc = wordCount(p.text) || 1;
+      var sugWc = wordCount(f.rule.suggestedText);
+      var ratio = sugWc / origWc;
+      if (ratio < 0.3 || ratio > 3.0) {
+        warnings.push({ type:'length-mismatch', rule: f.rule, paragraphIndex: f.paragraphIndex,
+          message: 'Suggested replacement for clause ' + f.paragraphIndex + ' is ' + sugWc + ' words vs. the original\u2019s ' + origWc + ' (' + ratio.toFixed(1) + 'x). Large length mismatches can signal a scope mismatch \u2014 review before accepting.' });
+      }
+    });
+
+    return warnings;
+  }
+
+  // ---------- default rules ----------
+  var DEFAULT_RULES = [
+    { id:'r1', label:'Perpetual / indefinite confidentiality term', matchType:'regex', pattern:'perpetual|indefinitely|no expiration', matchWhen:'present', severity:'critical', action:'suggest',
+      suggestedText:'The obligations of confidentiality set forth herein shall survive for a period of three (3) years from the date of disclosure, except that obligations with respect to trade secrets shall survive for so long as such information remains a trade secret under applicable law.',
+      guidance:'Unbounded confidentiality terms are difficult to enforce and often rejected by counterparties. Suggested language bounds the term while preserving trade-secret protection.', enabled:true },
+    { id:'r2', label:'Overly broad "Confidential Information" definition', matchType:'keyword', pattern:'any and all information', matchWhen:'present', severity:'warning', action:'flag',
+      guidance:'Consider narrowing to information that is marked confidential or would reasonably be understood as confidential given its nature.', enabled:true },
+    { id:'r3', label:'Broad indemnification language', matchType:'keyword', pattern:'indemnif', matchWhen:'present', severity:'warning', action:'flag',
+      guidance:'Indemnification clauses are uncommon in U.S. NDAs and generally viewed as off-market \u2014 sellers can already sue for breach of contract or seek injunctive relief. Confirm scope is mutual and capped, or push to remove entirely.', enabled:true },
+    { id:'r4', label:'Non-solicit period exceeds 24 months', matchType:'regex', pattern:'(2[5-9]|[3-9]\\d)\\s*\\)?\\s*months', matchWhen:'present', severity:'warning', action:'flag',
+      guidance:'Non-solicit periods beyond 24 months may be viewed as overly restrictive. Market practice for PE buyers typically runs 6\u201318 months. Confirm scope excludes candidates sourced via recruiters or who self-initiate contact, and that it doesn\u2019t bind portfolio companies uninvolved in this transaction.', enabled:true },
+    { id:'r5', label:'Missing residual-information clause', matchType:'keyword', pattern:'residual', matchWhen:'absent', severity:'critical', action:'flag',
+      guidance:'No carve-out found for information retained in employees\u2019 unaided memory. Consider adding a residuals clause.', enabled:true },
+    { id:'r6', label:'Missing injunctive relief clause', matchType:'keyword', pattern:'injunctive relief', matchWhen:'absent', severity:'warning', action:'flag',
+      guidance:'No language confirming injunctive relief is available for breach. Monetary damages alone may be an inadequate remedy for disclosure.', enabled:true },
+    { id:'r7', label:'Governing law jurisdiction', matchType:'keyword', pattern:'governed by the laws', matchWhen:'present', severity:'note', action:'suggest',
+      suggestedText:'This Agreement shall be governed by the laws of the State of [YOUR FIRM\u2019S PREFERRED STATE], without regard to its conflict of laws principles.',
+      guidance:'Replace the bracketed jurisdiction with your firm\u2019s standard governing-law preference.', enabled:true },
+    { id:'r8', label:'Missing return/destruction of information clause', matchType:'keyword', pattern:'return or destroy', matchWhen:'absent', severity:'warning', action:'flag',
+      guidance:'No clause found requiring return or destruction of Confidential Information upon request or termination. If present elsewhere, confirm it includes an exception allowing retention per standard compliance/recordkeeping policies, with use of retained information limited to legal, compliance, or IT purposes.', enabled:true },
+    { id:'r9', label:'One-way disclosure language in a mutual agreement', matchType:'keyword', pattern:'unilaterally', matchWhen:'present', severity:'note', action:'flag',
+      guidance:'Confirm this language matches the intended deal structure (mutual vs. one-way).', enabled:true },
+    { id:'r10', label:'Non-compete / restrictive covenant present', matchType:'keyword', pattern:'non-compete', matchWhen:'present', severity:'warning', action:'flag',
+      guidance:'Review duration and geographic scope against firm standard.', enabled:true },
+    { id:'r11', label:'Missing financing-sources carve-out in Representatives definition', matchType:'regex', pattern:'financing sources?|debt (and|or) equity financing', matchWhen:'absent', severity:'critical', action:'flag',
+      guidance:'No language found permitting disclosure to debt or equity financing sources. Without this carve-out, the buyer may be unable to share diligence materials with lenders or co-investors needed to actually finance the deal \u2014 a common and important addition to the Representatives definition for PE buyers.', enabled:true },
+    { id:'r12', label:'Standstill clause present', matchType:'keyword', pattern:'standstill', matchWhen:'present', severity:'note', action:'flag',
+      guidance:'Relevant mainly for public targets. Market practice for PE buyers is typically 6\u201318 months \u2014 confirm duration, that it doesn\u2019t bind Representatives, and that it includes a fallaway or exception for de minimis transactions.', enabled:true },
+    { id:'r13', label:'No-contact clause scope', matchType:'keyword', pattern:'shall not contact', matchWhen:'present', severity:'note', action:'flag',
+      guidance:'Confirm the restricted-party list (employees, customers, suppliers, lenders) isn\u2019t broader than necessary, and that there\u2019s a carve-out for ordinary-course contact unrelated to the transaction and for \u201cno-names\u201d diligence through expert networks.', enabled:true },
+    { id:'r14', label:'Joinder requirement for financing sources', matchType:'keyword', pattern:'joinder', matchWhen:'present', severity:'note', action:'flag',
+      guidance:'Confirms whether financing sources must separately sign onto the NDA\u2019s terms. Adds an administrative step \u2014 track whether this is required or left to the buyer\u2019s discretion.', enabled:true }
+  ];
+
+  var RULES_KEY = 'nda-bot-rules-v1';
+  function loadRules(){
+    try {
+      var saved = localStorage.getItem(RULES_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch(e){}
+    return JSON.parse(JSON.stringify(DEFAULT_RULES));
+  }
+  function saveRules(){
+    try { localStorage.setItem(RULES_KEY, JSON.stringify(RULES)); } catch(e){}
+  }
+
+  var RULES = loadRules();
+
+  // ---------- contracts dashboard store ----------
+  var CONTRACTS_KEY = 'nda-bot-contracts-v1';
+  function loadContracts(){
+    try {
+      var saved = localStorage.getItem(CONTRACTS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch(e){}
+    return [];
+  }
+  function saveContracts(){ try { localStorage.setItem(CONTRACTS_KEY, JSON.stringify(CONTRACTS)); } catch(e){} }
+  var CONTRACTS = loadContracts();
+  var currentContractId = null;
+
+  function fmtDate(ts){
+    return new Date(ts).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+  }
+
+  var STATUS_META = {
+    review: { label:'Review', icon:'\u25c9' },
+    sign: { label:'Sign', icon:'\u270d' },
+    completed: { label:'Completed', icon:'\u2713' }
+  };
+
+  function renderContractsList(){
+    var el = document.getElementById('contractsList');
+    if (!CONTRACTS.length){
+      el.innerHTML = '<div class="dash-empty">No contracts yet. Upload an NDA in the Review Console to get started.</div>';
+      return;
+    }
+    var sorted = CONTRACTS.slice().sort(function(a,b){ return b.updatedAt - a.updatedAt; });
+    el.innerHTML = sorted.map(function(c){
+      var meta = STATUS_META[c.status] || STATUS_META.review;
+      return '<div class="contract-row" data-id="'+c.id+'">' +
+        '<div><div class="contract-name">'+escapeHtml(c.filename)+'</div><div class="contract-date">Updated '+fmtDate(c.updatedAt)+'</div></div>' +
+        '<span class="status-pill '+c.status+'">'+meta.icon+' '+meta.label+'</span>' +
+        '<button class="contract-del" data-id="'+c.id+'" title="Remove from list">\u00d7</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  document.getElementById('contractsList').addEventListener('click', function(e){
+    if (e.target.classList.contains('contract-del')){
+      var id = e.target.getAttribute('data-id');
+      CONTRACTS = CONTRACTS.filter(function(c){ return c.id !== id; });
+      saveContracts();
+      renderContractsList();
+      renderInsightsDonut();
+    }
+  });
+
+  function upsertContract(patch){
+    if (!currentContractId) return;
+    var existing = CONTRACTS.filter(function(c){ return c.id === currentContractId; })[0];
+    if (existing) {
+      Object.assign(existing, patch, { updatedAt: Date.now() });
+    } else {
+      CONTRACTS.push(Object.assign({ id: currentContractId, updatedAt: Date.now() }, patch));
+    }
+    saveContracts();
+    renderContractsList();
+    renderInsightsDonut();
+  }
+
+  function renderInsightsDonut(){
+    var totals = { critical:0, warning:0, note:0 };
+    CONTRACTS.forEach(function(c){
+      if (!c.counts) return;
+      totals.critical += c.counts.critical || 0;
+      totals.warning += c.counts.warning || 0;
+      totals.note += c.counts.note || 0;
+    });
+    var total = totals.critical + totals.warning + totals.note;
+    var wrap = document.getElementById('insightsDonutWrap');
+    if (!total) {
+      wrap.innerHTML = '<div class="dash-empty">Run a review on at least one contract to see findings here.</div>';
+      return;
+    }
+    var segs = [
+      { key:'critical', color: getComputedStyle(document.documentElement).getPropertyValue('--red').trim(), v: totals.critical, label:'Critical' },
+      { key:'warning', color: getComputedStyle(document.documentElement).getPropertyValue('--amber').trim(), v: totals.warning, label:'Warning' },
+      { key:'note', color: getComputedStyle(document.documentElement).getPropertyValue('--navy').trim(), v: totals.note, label:'Note' }
+    ];
+    var acc = 0;
+    var stops = segs.map(function(s){
+      var start = acc / total * 360;
+      acc += s.v;
+      var end = acc / total * 360;
+      return s.color + ' ' + start.toFixed(1) + 'deg ' + end.toFixed(1) + 'deg';
+    }).join(', ');
+    wrap.innerHTML =
+      '<div class="donut" style="background: conic-gradient(' + stops + ');">' +
+        '<div class="donut-center"><span class="n">'+total+'</span><span class="l">Findings</span></div>' +
+      '</div>' +
+      '<div class="donut-legend">' + segs.map(function(s){
+        return '<div class="donut-legend-row"><span class="donut-dot" style="background:'+s.color+'"></span>'+s.label+'<span class="lv">'+s.v+'</span></div>';
+      }).join('') + '</div>';
+  }
+
+  renderContractsList();
+  renderInsightsDonut();
+
+  // ---------- tab switching ----------
+  var reviewTabBtn = document.getElementById('reviewTabBtn');
+  var contractsTabBtn = document.getElementById('contractsTabBtn');
+  var apiTabBtn = document.getElementById('apiTabBtn');
+  var reviewTabContent = document.getElementById('reviewTabContent');
+  var contractsTabContent = document.getElementById('contractsTabContent');
+  var apiTabContent = document.getElementById('apiTabContent');
+  function showTab(name){
+    reviewTabBtn.classList.toggle('active', name==='review');
+    contractsTabBtn.classList.toggle('active', name==='contracts');
+    apiTabBtn.classList.toggle('active', name==='api');
+    reviewTabContent.classList.toggle('active', name==='review');
+    contractsTabContent.classList.toggle('active', name==='contracts');
+    apiTabContent.classList.toggle('active', name==='api');
+  }
+  reviewTabBtn.addEventListener('click', function(){ showTab('review'); });
+  contractsTabBtn.addEventListener('click', function(){ showTab('contracts'); renderContractsList(); renderInsightsDonut(); });
+  apiTabBtn.addEventListener('click', function(){ showTab('api'); });
+
+  document.getElementById('newContractBtn').addEventListener('click', function(){
+    showTab('review');
+    document.getElementById('fbClear').click();
+  });
+
+  // ---------- developer api ----------
+  document.getElementById('curlExample').textContent =
+'curl -X POST https://your-deployment.vercel.app/api/review \\\n' +
+'  -H "Authorization: Bearer ndarev_yourkeyhere" \\\n' +
+'  -H "Content-Type: application/json" \\\n' +
+'  -d \'{\n' +
+'    "docxBase64": "<base64-encoded .docx file>",\n' +
+'    "rules": [\n' +
+'      { "label": "Perpetual term", "matchType": "regex",\n' +
+'        "pattern": "perpetual|indefinitely", "matchWhen": "present",\n' +
+'        "severity": "critical", "action": "flag", "enabled": true }\n' +
+'    ]\n' +
+'  }\'\n\n' +
+'# Response:\n' +
+'# {\n' +
+'#   "findings": [ { "rule", "severity", "action", "paragraphIndex", "snippet" } ],\n' +
+'#   "lintWarnings": [ { "type", "message" } ],\n' +
+'#   "redlinedDocxBase64": "<base64-encoded .docx with real tracked changes>"\n' +
+'# }';
+
+  document.getElementById('genKeyBtn').addEventListener('click', async function(){
+    var btn = this;
+    var status = document.getElementById('apiKeyStatus');
+    btn.disabled = true;
+    status.textContent = 'Generating\u2026';
+    try {
+      var resp = await fetch('/api/generate-key', { method: 'POST' });
+      var data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Request failed');
+      document.getElementById('keyValue').textContent = data.key;
+      document.getElementById('keyDisplay').classList.add('show');
+      status.textContent = '';
+    } catch(err){
+      status.textContent = 'Could not generate a key: ' + err.message + ' \u2014 this endpoint only works once deployed with API_SIGNING_SECRET configured.';
+    }
+    btn.disabled = false;
+  });
+
+  document.getElementById('keyCopyBtn').addEventListener('click', function(){
+    var val = document.getElementById('keyValue').textContent;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(val).then(function(){
+        var btn = document.getElementById('keyCopyBtn');
+        var orig = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      });
+    }
+  });
+
+  var uploadedFile = null;
+  var parsedXmlDoc = null;
+  var parsedZip = null;
+  var parsedParagraphs = null;
+  var currentFindings = null;
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  // ---------- rule editor UI ----------
+  var rulesListEl = document.getElementById('rulesList');
+
+  var expandedRules = {};
+
+  var SEV_LABEL = { critical:'Critical', warning:'Warning', note:'Note' };
+  var ACT_LABEL2 = { flag:'Flag', strike:'Strike', suggest:'Suggest' };
+
+  function renderRules(){
+    rulesListEl.innerHTML = RULES.map(function(rule, i){
+      var isOpen = !!expandedRules[rule.id];
+      return '' +
+      '<div class="rule-card" data-idx="'+i+'">' +
+        '<div class="rule-top">' +
+          '<input type="checkbox" class="rule-enabled" '+(rule.enabled?'checked':'')+' />' +
+          '<span class="rule-summary-label">'+escapeHtml(rule.label)+'</span>' +
+          '<span class="rule-summary-badge sev-'+rule.severity+'">'+SEV_LABEL[rule.severity]+'</span>' +
+          '<span class="rule-summary-badge act-'+rule.action+'">'+ACT_LABEL2[rule.action]+'</span>' +
+          '<button class="rule-expand-btn" title="Edit rule">'+(isOpen ? '\u2212' : 'Edit')+'</button>' +
+          '<button class="rule-del-btn">Delete</button>' +
+        '</div>' +
+        '<div class="rule-body" style="display:'+(isOpen?'block':'none')+';">' +
+        '<div class="rule-field" style="margin-bottom:10px;"><label>What do you call this rule?</label><input type="text" class="rule-label-input" value="'+escapeHtml(rule.label)+'" /></div>' +
+        '<div class="rule-grid">' +
+          '<div class="rule-field"><label>How to search</label><select class="rule-matchType">' +
+            '<option value="keyword" '+(rule.matchType==='keyword'?'selected':'')+'>Simple text match</option>' +
+            '<option value="regex" '+(rule.matchType==='regex'?'selected':'')+'>Advanced pattern (regex)</option>' +
+          '</select></div>' +
+          '<div class="rule-field"><label>Word or phrase to look for</label><input type="text" class="rule-pattern" placeholder="e.g. indemnify" value="'+escapeHtml(rule.pattern)+'" /></div>' +
+          '<div class="rule-field"><label>Trigger this rule when that text is\u2026</label><select class="rule-matchWhen">' +
+            '<option value="present" '+(rule.matchWhen==='present'?'selected':'')+'>Found in the document</option>' +
+            '<option value="absent" '+(rule.matchWhen==='absent'?'selected':'')+'>Missing from the document</option>' +
+          '</select></div>' +
+          '<div class="rule-field"><label>How serious is this?</label><select class="rule-severity">' +
+            '<option value="critical" '+(rule.severity==='critical'?'selected':'')+'>Critical \u2014 needs attention</option>' +
+            '<option value="warning" '+(rule.severity==='warning'?'selected':'')+'>Warning \u2014 worth reviewing</option>' +
+            '<option value="note" '+(rule.severity==='note'?'selected':'')+'>Just a note</option>' +
+          '</select></div>' +
+        '</div>' +
+        '<div class="rule-grid" style="grid-template-columns:1fr;">' +
+          '<div class="rule-field"><label>What should happen when this is found?</label><select class="rule-action">' +
+            '<option value="flag" '+(rule.action==='flag'?'selected':'')+'>Just highlight it \u2014 don\u2019t change the document</option>' +
+            '<option value="strike" '+(rule.action==='strike'?'selected':'')+'>Delete this clause</option>' +
+            '<option value="suggest" '+(rule.action==='suggest'?'selected':'')+'>Delete it and replace with my own wording</option>' +
+          '</select></div>' +
+        '</div>' +
+        '<div class="rule-suggest" style="display:'+(rule.action==='suggest'?'block':'none')+';">' +
+          '<label>Replacement wording to insert instead</label>' +
+          '<textarea class="rule-suggestedText">'+escapeHtml(rule.suggestedText||'')+'</textarea>' +
+        '</div>' +
+        '<div class="rule-guidance">' +
+          '<label>Note to show whoever reviews this finding (optional)</label>' +
+          '<textarea class="rule-guidanceText">'+escapeHtml(rule.guidance||'')+'</textarea>' +
+        '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+  renderRules();
+
+  rulesListEl.addEventListener('click', function(e){
+    if (e.target.classList.contains('rule-expand-btn')){
+      var card = e.target.closest('.rule-card');
+      var idx = parseInt(card.getAttribute('data-idx'), 10);
+      var id = RULES[idx].id;
+      expandedRules[id] = !expandedRules[id];
+      renderRules();
+    }
+  });
+
+  rulesListEl.addEventListener('input', function(e){
+    var card = e.target.closest('.rule-card');
+    if (!card) return;
+    var idx = parseInt(card.getAttribute('data-idx'), 10);
+    var rule = RULES[idx];
+    if (e.target.classList.contains('rule-label-input')) rule.label = e.target.value;
+    if (e.target.classList.contains('rule-pattern')) rule.pattern = e.target.value;
+    if (e.target.classList.contains('rule-suggestedText')) rule.suggestedText = e.target.value;
+    if (e.target.classList.contains('rule-guidanceText')) rule.guidance = e.target.value;
+    saveRules();
+  });
+  rulesListEl.addEventListener('change', function(e){
+    var card = e.target.closest('.rule-card');
+    if (!card) return;
+    var idx = parseInt(card.getAttribute('data-idx'), 10);
+    var rule = RULES[idx];
+    if (e.target.classList.contains('rule-enabled')) rule.enabled = e.target.checked;
+    if (e.target.classList.contains('rule-matchType')) rule.matchType = e.target.value;
+    if (e.target.classList.contains('rule-matchWhen')) rule.matchWhen = e.target.value;
+    if (e.target.classList.contains('rule-severity')) rule.severity = e.target.value;
+    if (e.target.classList.contains('rule-action')) {
+      rule.action = e.target.value;
+      renderRules();
+    }
+    saveRules();
+  });
+  rulesListEl.addEventListener('click', function(e){
+    if (e.target.classList.contains('rule-del-btn')) {
+      var card = e.target.closest('.rule-card');
+      var idx = parseInt(card.getAttribute('data-idx'), 10);
+      RULES.splice(idx, 1);
+      saveRules();
+      renderRules();
+    }
+  });
+  document.getElementById('addRuleBtn').addEventListener('click', function(){
+    var newId = 'r'+Date.now();
+    RULES.push({ id:newId, label:'New rule', matchType:'keyword', pattern:'', matchWhen:'present', severity:'note', action:'flag', suggestedText:'', guidance:'', enabled:true });
+    expandedRules[newId] = true;
+    saveRules();
+    renderRules();
+  });
+  document.getElementById('resetRulesBtn').addEventListener('click', function(){
+    RULES = JSON.parse(JSON.stringify(DEFAULT_RULES));
+    saveRules();
+    renderRules();
+  });
+
+  // ---------- import / export requirements ----------
+  var VALID_MATCH_TYPE = ['keyword','regex'];
+  var VALID_MATCH_WHEN = ['present','absent'];
+  var VALID_SEVERITY = ['critical','warning','note'];
+  var VALID_ACTION = ['flag','strike','suggest'];
+
+  function parseCSV(text){
+    var rows = []; var row = []; var field = ''; var inQuotes = false;
+    for (var i=0;i<text.length;i++){
+      var c = text[i];
+      if (inQuotes){
+        if (c === '"'){ if (text[i+1] === '"'){ field += '"'; i++; } else { inQuotes = false; } }
+        else field += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ',') { row.push(field); field=''; }
+        else if (c === '\n' || c === '\r'){
+          if (c === '\r' && text[i+1] === '\n') i++;
+          row.push(field); field=''; rows.push(row); row=[];
+        } else field += c;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(function(r){ return !(r.length===1 && r[0].trim()===''); });
+  }
+
+  function rulesFromCSVRows(rows){
+    if (!rows.length) return { rules: [], skipped: 0 };
+    var header = rows[0].map(function(h){ return h.trim().toLowerCase(); });
+    var idx = {}; header.forEach(function(h,i){ idx[h]=i; });
+    var rules = []; var skipped = 0;
+    for (var r=1;r<rows.length;r++){
+      var row = rows[r];
+      var label = (row[idx['label']] || '').trim();
+      var pattern = (row[idx['pattern']] || '').trim();
+      if (!label || !pattern) { skipped++; continue; }
+      var matchType = (row[idx['matchtype']] || 'keyword').trim().toLowerCase();
+      if (VALID_MATCH_TYPE.indexOf(matchType) === -1) matchType = 'keyword';
+      var matchWhen = (row[idx['matchwhen']] || 'present').trim().toLowerCase();
+      if (VALID_MATCH_WHEN.indexOf(matchWhen) === -1) matchWhen = 'present';
+      var severity = (row[idx['severity']] || 'warning').trim().toLowerCase();
+      if (VALID_SEVERITY.indexOf(severity) === -1) severity = 'warning';
+      var action = (row[idx['action']] || 'flag').trim().toLowerCase();
+      if (VALID_ACTION.indexOf(action) === -1) action = 'flag';
+      var suggestedText = (row[idx['suggestedtext']] || '').trim();
+      var guidance = (row[idx['guidance']] || '').trim();
+      var enabledRaw = (row[idx['enabled']] || 'true').trim().toLowerCase();
+      var enabled = enabledRaw !== 'false' && enabledRaw !== '0' && enabledRaw !== 'no';
+      rules.push({ id:'imp'+Date.now()+'_'+r, label:label, matchType:matchType, pattern:pattern, matchWhen:matchWhen,
+        severity:severity, action:action, suggestedText:suggestedText, guidance:guidance, enabled:enabled });
+    }
+    return { rules: rules, skipped: skipped };
+  }
+
+  function rulesFromJSON(text){
+    var data = JSON.parse(text);
+    if (!Array.isArray(data)) throw new Error('Expected a JSON array of rules.');
+    var rules = []; var skipped = 0;
+    data.forEach(function(item, i){
+      var label = (item.label || '').toString().trim();
+      var pattern = (item.pattern || '').toString().trim();
+      if (!label || !pattern) { skipped++; return; }
+      var matchType = VALID_MATCH_TYPE.indexOf(item.matchType) !== -1 ? item.matchType : 'keyword';
+      var matchWhen = VALID_MATCH_WHEN.indexOf(item.matchWhen) !== -1 ? item.matchWhen : 'present';
+      var severity = VALID_SEVERITY.indexOf(item.severity) !== -1 ? item.severity : 'warning';
+      var action = VALID_ACTION.indexOf(item.action) !== -1 ? item.action : 'flag';
+      rules.push({ id: item.id || ('imp'+Date.now()+'_'+i), label:label, matchType:matchType, pattern:pattern,
+        matchWhen:matchWhen, severity:severity, action:action,
+        suggestedText: (item.suggestedText||'').toString(), guidance:(item.guidance||'').toString(),
+        enabled: item.enabled !== false });
+    });
+    return { rules: rules, skipped: skipped };
+  }
+
+  var importStatus = document.getElementById('importStatus');
+  var rulesFileInput = document.getElementById('rulesFileInput');
+
+  document.getElementById('uploadRulesBtn').addEventListener('click', function(){ rulesFileInput.click(); });
+
+  rulesFileInput.addEventListener('change', async function(){
+    if (!rulesFileInput.files.length) return;
+    var file = rulesFileInput.files[0];
+    var text = await file.text();
+    var result;
+    try {
+      if (/\.json$/i.test(file.name)) result = rulesFromJSON(text);
+      else result = rulesFromCSVRows(parseCSV(text));
+    } catch(err){
+      importStatus.textContent = 'Could not read this file: ' + err.message;
+      importStatus.className = 'import-status err';
+      rulesFileInput.value = '';
+      return;
+    }
+    if (!result.rules.length) {
+      importStatus.textContent = 'No valid rules found in this file (each row needs at least a label and a pattern).';
+      importStatus.className = 'import-status err';
+      rulesFileInput.value = '';
+      return;
+    }
+    var replace = window.confirm(
+      'Found ' + result.rules.length + ' rule(s)' + (result.skipped ? (', skipped ' + result.skipped + ' incomplete row(s)') : '') +
+      '.\n\nOK = replace all existing rules with these.\nCancel = add these to your existing rules instead.'
+    );
+    RULES = replace ? result.rules : RULES.concat(result.rules);
+    saveRules();
+    renderRules();
+    importStatus.textContent = 'Imported ' + result.rules.length + ' rule(s)' + (result.skipped ? (', skipped ' + result.skipped + ' incomplete row(s)') : '') + '.';
+    importStatus.className = 'import-status ok';
+    rulesFileInput.value = '';
+  });
+
+  document.getElementById('exportRulesBtn').addEventListener('click', function(){
+    var blob = new Blob([JSON.stringify(RULES, null, 2)], { type:'application/json' });
+    downloadBlob(blob, 'nda-review-rules.json');
+  });
+
+  document.getElementById('downloadTemplateBtn').addEventListener('click', function(){
+    var headers = ['label','pattern','matchType','matchWhen','severity','action','suggestedText','guidance','enabled'];
+    var sampleRows = [
+      ['Arbitration clause required','arbitration','keyword','absent','warning','flag','','Confirm the agreement requires arbitration rather than litigation.','true'],
+      ['Liability cap missing','liability cap','keyword','absent','critical','flag','','No cap on liability found \u2014 confirm this is intentional.','true'],
+      ['Governing law jurisdiction','governed by the laws','keyword','present','note','suggest','This Agreement shall be governed by the laws of the State of [YOUR STATE].','Replace with firm-preferred jurisdiction.','true']
+    ];
+    function csvField(v){
+      v = String(v);
+      return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+    }
+    var lines = [headers.join(',')].concat(sampleRows.map(function(r){ return r.map(csvField).join(','); }));
+    var blob = new Blob([lines.join('\n')], { type:'text/csv' });
+    downloadBlob(blob, 'nda-rules-template.csv');
+  });
+
+  // ---------- upload ----------
+  var dropzone = document.getElementById('dropzone');
+  var fileInput = document.getElementById('fileInput');
+  var fileBadge = document.getElementById('fileBadge');
+  var runReviewBtn = document.getElementById('runReviewBtn');
+  var reviewStatus = document.getElementById('reviewStatus');
+
+  dropzone.addEventListener('click', function(){ fileInput.click(); });
+  dropzone.addEventListener('dragover', function(e){ e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', function(){ dropzone.classList.remove('drag'); });
+  dropzone.addEventListener('drop', function(e){
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', function(){
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+  document.getElementById('fbClear').addEventListener('click', function(e){
+    e.stopPropagation();
+    uploadedFile = null; parsedXmlDoc = null; parsedZip = null; parsedParagraphs = null;
+    currentContractId = null;
+    fileBadge.style.display = 'none';
+    dropzone.style.display = 'block';
+    runReviewBtn.disabled = true;
+    reviewStatus.textContent = '';
+    document.getElementById('findingsSection').style.display = 'none';
+    document.getElementById('generateBtn').disabled = true;
+  });
+
+  async function handleFile(file){
+    if (!/\.docx$/i.test(file.name)) {
+      reviewStatus.textContent = 'Please upload a .docx file.';
+      return;
+    }
+    uploadedFile = file;
+    reviewStatus.textContent = 'Parsing document\u2026';
+    try {
+      var buf = await file.arrayBuffer();
+      parsedZip = await JSZip.loadAsync(buf);
+      var xmlStr = await parsedZip.file('word/document.xml').async('string');
+      var parser = new DOMParser();
+      parsedXmlDoc = parser.parseFromString(xmlStr, 'application/xml');
+      parsedParagraphs = extractParagraphs(parsedXmlDoc);
+
+      document.getElementById('fbName').textContent = file.name;
+      document.getElementById('fbMeta').textContent = parsedParagraphs.length + ' paragraphs \u00b7 ' + Math.round(file.size/1024) + ' KB';
+      fileBadge.style.display = 'flex';
+      dropzone.style.display = 'none';
+      runReviewBtn.disabled = false;
+      reviewStatus.textContent = '';
+      document.getElementById('findingsSection').style.display = 'none';
+      document.getElementById('generateBtn').disabled = true;
+      currentFindings = null;
+
+      currentContractId = 'c' + Date.now();
+      upsertContract({ filename: file.name, status: 'review', counts: null });
+    } catch(err){
+      reviewStatus.textContent = 'Could not parse this file: ' + err.message;
+    }
+  }
+
+  // ---------- run review ----------
+  var SEVERITY_LABEL = { critical:'Critical', warning:'Warning', note:'Note' };
+  var ACTION_LABEL = { flag:'Flagged', strike:'Struck', suggest:'Suggested edit' };
+
+  runReviewBtn.addEventListener('click', function(){
+    if (!parsedParagraphs) return;
+    currentFindings = runRules(parsedParagraphs, RULES);
+    renderFindings(currentFindings);
+    renderLint(runLint(parsedParagraphs, RULES, currentFindings));
+    document.getElementById('generateBtn').disabled = false;
+    reviewStatus.textContent = '';
+
+    var counts = { critical:0, warning:0, note:0 };
+    currentFindings.forEach(function(f){ counts[f.rule.severity]++; });
+    upsertContract({ status: 'sign', counts: counts });
+  });
+
+  function renderLint(warnings){
+    var el = document.getElementById('lintList');
+    if (!warnings.length) {
+      el.innerHTML = '<div class="lint-clean">No over-broad edits detected in the current rule set.</div>';
+      return;
+    }
+    el.innerHTML = '<div class="lint-list">' + warnings.map(function(w){
+      return '<div class="lint-row"><b>' + w.type.replace('-',' ') + ':</b> ' + escapeHtml(w.message) + '</div>';
+    }).join('') + '</div>';
+  }
+
+  function renderFindings(findings){
+    var section = document.getElementById('findingsSection');
+    section.style.display = 'block';
+    var counts = { critical:0, warning:0, note:0 };
+    findings.forEach(function(f){ counts[f.rule.severity]++; });
+    document.getElementById('findingsSummary').innerHTML =
+      '<div class="fs-stat critical"><div class="n">'+counts.critical+'</div><div class="l">Critical</div></div>' +
+      '<div class="fs-stat warning"><div class="n">'+counts.warning+'</div><div class="l">Warning</div></div>' +
+      '<div class="fs-stat note"><div class="n">'+counts.note+'</div><div class="l">Note</div></div>';
+
+    if (!findings.length) {
+      document.getElementById('findingsList').innerHTML = '<div class="status-note ok" style="margin-left:0;">No findings \u2014 document passed every enabled rule.</div>';
+      return;
+    }
+    document.getElementById('findingsList').innerHTML = findings.map(function(f){
+      return '<div class="finding-row '+f.rule.severity+'">' +
+        '<div class="finding-top">' +
+          '<span class="finding-label">'+escapeHtml(f.rule.label)+'</span>' +
+          '<span class="finding-badge">'+SEVERITY_LABEL[f.rule.severity]+'</span>' +
+          '<span class="finding-badge">'+ACTION_LABEL[f.rule.action]+'</span>' +
+        '</div>' +
+        (f.snippet ? '<div class="finding-snippet">\u201c'+escapeHtml(f.snippet)+'\u2026\u201d</div>' : '<div class="finding-snippet">Not found anywhere in the document.</div>') +
+        (f.rule.guidance ? '<div class="finding-guidance">'+escapeHtml(f.rule.guidance)+'</div>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  // ---------- signature pad ----------
+  var sigCanvas = document.getElementById('sigPad');
+  var sigCtx = sigCanvas.getContext('2d');
+  function resizeSigCanvas(){
+    var rect = sigCanvas.getBoundingClientRect();
+    sigCanvas.width = rect.width * 2;
+    sigCanvas.height = rect.height * 2;
+    sigCtx.scale(2,2);
+    sigCtx.strokeStyle = '#111';
+    sigCtx.lineWidth = 2;
+    sigCtx.lineCap = 'round';
+  }
+  window.addEventListener('load', resizeSigCanvas);
+  window.addEventListener('resize', resizeSigCanvas);
+  var drawing = false, lastX, lastY, sigHasContent = false;
+  function pos(e){
+    var rect = sigCanvas.getBoundingClientRect();
+    var cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    var cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x: cx, y: cy };
+  }
+  function startDraw(e){ e.preventDefault(); drawing = true; var p = pos(e); lastX=p.x; lastY=p.y; }
+  function moveDraw(e){
+    if (!drawing) return;
+    e.preventDefault();
+    var p = pos(e);
+    sigCtx.beginPath(); sigCtx.moveTo(lastX,lastY); sigCtx.lineTo(p.x,p.y); sigCtx.stroke();
+    lastX=p.x; lastY=p.y; sigHasContent = true;
+  }
+  function endDraw(){ drawing = false; }
+  sigCanvas.addEventListener('mousedown', startDraw);
+  sigCanvas.addEventListener('mousemove', moveDraw);
+  window.addEventListener('mouseup', endDraw);
+  sigCanvas.addEventListener('touchstart', startDraw);
+  sigCanvas.addEventListener('touchmove', moveDraw);
+  sigCanvas.addEventListener('touchend', endDraw);
+  document.getElementById('sigClearBtn').addEventListener('click', function(){
+    sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height);
+    sigHasContent = false;
+  });
+
+  // ---------- signature image upload (alternative to drawing) ----------
+  var uploadedSigDataUrl = null;
+  var sigUploadBtn = document.getElementById('sigUploadBtn');
+  var sigFileInput = document.getElementById('sigFileInput');
+  var sigDrawWrap = document.getElementById('sigDrawWrap');
+  var sigPreviewWrap = document.getElementById('sigPreviewWrap');
+  var sigPreviewImg = document.getElementById('sigPreviewImg');
+
+  sigUploadBtn.addEventListener('click', function(){ sigFileInput.click(); });
+
+  sigFileInput.addEventListener('change', function(){
+    if (!sigFileInput.files.length) return;
+    var file = sigFileInput.files[0];
+    var reader = new FileReader();
+    reader.onload = function(){
+      uploadedSigDataUrl = reader.result;
+      sigPreviewImg.src = uploadedSigDataUrl;
+      sigPreviewWrap.style.display = 'block';
+      sigDrawWrap.style.display = 'none';
+      sigUploadBtn.style.display = 'none';
+      document.querySelector('.sig-or').style.display = 'none';
+      sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height);
+      sigHasContent = false;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('sigPreviewClearBtn').addEventListener('click', function(){
+    uploadedSigDataUrl = null;
+    sigFileInput.value = '';
+    sigPreviewWrap.style.display = 'none';
+    sigDrawWrap.style.display = 'block';
+    sigUploadBtn.style.display = 'block';
+    document.querySelector('.sig-or').style.display = 'flex';
+  });
+
+  var today = new Date();
+  document.getElementById('assocDate').value = today.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  // ---------- generate documents ----------
+  document.getElementById('generateBtn').addEventListener('click', async function(){
+    var genStatus = document.getElementById('generateStatus');
+    if (!parsedParagraphs || !currentFindings) { genStatus.textContent = 'Run the review first.'; return; }
+    var name = document.getElementById('assocName').value.trim() || 'Associate';
+    var title = document.getElementById('assocTitle').value.trim();
+    var dateVal = document.getElementById('assocDate').value.trim();
+    genStatus.textContent = 'Generating documents\u2026';
+
+    try {
+      // ---- redlined docx ----
+      buildRedlinedXml(parsedXmlDoc, parsedParagraphs, currentFindings, 'NDA Review Bot');
+      var serializer = new XMLSerializer();
+      var newXmlStr = serializer.serializeToString(parsedXmlDoc);
+      parsedZip.file('word/document.xml', newXmlStr);
+      var docxBlob = await parsedZip.generateAsync({ type:'blob' });
+      downloadBlob(docxBlob, (uploadedFile.name.replace(/\.docx$/i,'')) + '_REDLINED.docx');
+
+      // ---- final signed PDF ----
+      var finalParas = computeFinalText(parsedParagraphs, currentFindings);
+      var { jsPDF } = window.jspdf;
+      var doc = new jsPDF({ unit:'pt', format:'letter' });
+      var marginL = 60, marginR = 60, pageW = 612, pageH = 792;
+      var maxW = pageW - marginL - marginR;
+      var y = 72;
+
+      var hasSignature = !!(uploadedSigDataUrl || sigHasContent);
+      var sigDataUrl = uploadedSigDataUrl || (sigHasContent ? sigCanvas.toDataURL('image/png') : null);
+      var sigFmt = sigDataUrl && /^data:image\/jpeg/.test(sigDataUrl) ? 'JPEG' : 'PNG';
+      var SIG_W = 160, SIG_H = 48, SIG_GAP = 4; // image sits SIG_GAP above the detected signature line
+      var signaturePlaced = false;
+
+      function isSignatureLine(text){
+        var t = text.trim();
+        if (!t) return false;
+        if (/_{3,}/.test(t)) return true; // a blank/underscore signature rule, e.g. "By: ______________"
+        if (/^(by|signature|signed|authorized signatory)\s*:?\s*$/i.test(t)) return true;
+        return false;
+      }
+
+      doc.setFont('times','bold'); doc.setFontSize(15);
+      var title0 = finalParas[0] || 'Non-Disclosure Agreement';
+      doc.text(title0, marginL, y); y += 26;
+
+      doc.setFont('times','normal'); doc.setFontSize(11);
+      for (var i=1;i<finalParas.length;i++){
+        var paraText = finalParas[i];
+        var placingHere = false;
+
+        if (hasSignature && !signaturePlaced && isSignatureLine(paraText)) {
+          if (y > pageH - (SIG_H + SIG_GAP + 90)) { doc.addPage(); y = 72; }
+          y += SIG_H + SIG_GAP;
+          doc.addImage(sigDataUrl, sigFmt, marginL, y - SIG_H - SIG_GAP, SIG_W, SIG_H);
+          signaturePlaced = true;
+          placingHere = true;
+        }
+
+        var lines = doc.splitTextToSize(paraText, maxW);
+        for (var j=0;j<lines.length;j++){
+          if (y > pageH - 90) { doc.addPage(); y = 72; }
+          doc.text(lines[j], marginL, y);
+          y += 15;
+        }
+        y += 8;
+
+        if (placingHere) {
+          doc.setFont('times','italic'); doc.setFontSize(9.5);
+          doc.text(name + (title ? ' \u2014 ' + title : '') + ' \u2014 ' + dateVal, marginL, y);
+          doc.setFont('times','normal'); doc.setFontSize(11);
+          y += 16;
+        }
+      }
+
+      if (hasSignature && !signaturePlaced) {
+        // no existing signature line found in the document — fall back to an appended block
+        if (y > pageH - 220) { doc.addPage(); y = 72; }
+        y += 20;
+        doc.setFont('times','italic'); doc.setFontSize(10.5);
+        doc.text('Executed as of the date below.', marginL, y);
+        y += 30;
+        doc.addImage(sigDataUrl, sigFmt, marginL, y, SIG_W, 55);
+        y += 65;
+        doc.setFont('times','normal'); doc.setFontSize(10.5);
+        doc.text('Associate: ' + name, marginL, y); y += 15;
+        if (title) { doc.text('Title: ' + title, marginL, y); y += 15; }
+        doc.text('Date: ' + dateVal, marginL, y);
+      }
+
+      var pdfBlob = doc.output('blob');
+      downloadBlob(pdfBlob, (uploadedFile.name.replace(/\.docx$/i,'')) + '_EXECUTION_COPY.pdf');
+
+      genStatus.textContent = 'Both documents downloaded.';
+      genStatus.classList.add('ok');
+      upsertContract({ status: 'completed' });
+    } catch(err){
+      genStatus.textContent = 'Error generating documents: ' + err.message;
+    }
+  });
+
+  function downloadBlob(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }
+
+})();
+</script>
+</body>
+</html>

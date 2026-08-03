@@ -1,0 +1,65 @@
+{
+  "info": {
+    "name": "NDA Review API",
+    "description": "Generate a key, then run a review. Set the `baseUrl` collection variable to your deployment (e.g. https://your-deployment.vercel.app) and `docxBase64` to a base64-encoded .docx before running the Review request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://your-deployment.vercel.app" },
+    { "key": "apiKey", "value": "" },
+    { "key": "docxBase64", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Generate API Key",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/generate-key", "host": ["{{baseUrl}}"], "path": ["api", "generate-key"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const data = pm.response.json();",
+              "if (data.key) { pm.collectionVariables.set('apiKey', data.key); }",
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "pm.test('Response has a key', () => pm.expect(data.key).to.be.a('string'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Review NDA",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{apiKey}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"docxBase64\": \"{{docxBase64}}\",\n  \"rules\": [\n    {\n      \"label\": \"Perpetual term\",\n      \"matchType\": \"regex\",\n      \"pattern\": \"perpetual|indefinitely\",\n      \"matchWhen\": \"present\",\n      \"severity\": \"critical\",\n      \"action\": \"flag\",\n      \"enabled\": true\n    },\n    {\n      \"label\": \"Broad indemnification\",\n      \"matchType\": \"keyword\",\n      \"pattern\": \"indemnif\",\n      \"matchWhen\": \"present\",\n      \"severity\": \"warning\",\n      \"action\": \"flag\",\n      \"enabled\": true\n    }\n  ]\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/review", "host": ["{{baseUrl}}"], "path": ["api", "review"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "const data = pm.response.json();",
+              "pm.test('Response has findings array', () => pm.expect(data.findings).to.be.an('array'));",
+              "pm.test('Response has redlinedDocxBase64', () => pm.expect(data.redlinedDocxBase64).to.be.a('string'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

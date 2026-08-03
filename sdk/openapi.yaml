@@ -1,0 +1,187 @@
+openapi: 3.0.3
+info:
+  title: NDA Review API
+  version: "1.0.0"
+  description: >
+    Clause-level NDA review, rule matching, over-broad-edit linting, and real
+    OOXML tracked-changes redlining, exposed as a stateless HTTP API.
+    Import this spec into your own tooling (Postman, Insomnia, codegen for
+    any language) to build a client in whatever stack you use.
+servers:
+  - url: https://your-deployment.vercel.app
+    description: Replace with your actual deployment URL after setup.
+
+paths:
+  /api/generate-key:
+    post:
+      summary: Generate a new API key
+      description: >
+        No authentication required. Returns a self-verifying key
+        (HMAC-signed, no database lookup involved) shown once — there is no
+        endpoint to retrieve a previously issued key again.
+      responses:
+        "200":
+          description: Key generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                    example: "ndarev_9038e50665b164923d70a316.1785795475983.ce90535733812b57eed119329a670577"
+                  issuedAt:
+                    type: integer
+                    format: int64
+                    example: 1785795475983
+        "500":
+          description: Server misconfigured (missing API_SIGNING_SECRET)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/review:
+    post:
+      summary: Review an NDA against a rule set
+      description: >
+        Runs rule matching, an automated lint pass for over-broad edits, and
+        generates a redlined .docx with real Word tracked changes
+        (`<w:ins>`/`<w:del>`/`<w:highlight>` — opens correctly in Microsoft
+        Word, not a converted image).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [docxBase64, rules]
+              properties:
+                docxBase64:
+                  type: string
+                  description: Base64-encoded .docx file content.
+                rules:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Rule"
+      responses:
+        "200":
+          description: Review completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  findings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Finding"
+                  lintWarnings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LintWarning"
+                  redlinedDocxBase64:
+                    type: string
+                    description: Base64-encoded .docx with real tracked changes applied.
+        "400":
+          description: Malformed request (missing docxBase64 or rules)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate limit exceeded (20 requests/minute per key; soft limit, see docs)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error (e.g. corrupt .docx, missing API_SIGNING_SECRET)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "API key returned by POST /api/generate-key, passed as: Authorization: Bearer <key>"
+
+  schemas:
+    Rule:
+      type: object
+      required: [label, matchType, pattern, matchWhen, severity, action, enabled]
+      properties:
+        label:
+          type: string
+          example: "Perpetual / indefinite confidentiality term"
+        matchType:
+          type: string
+          enum: [keyword, regex]
+        pattern:
+          type: string
+          example: "perpetual|indefinitely|no expiration"
+        matchWhen:
+          type: string
+          enum: [present, absent]
+          description: "'absent' flags the rule when the pattern is NOT found anywhere in the document (e.g. a missing residuals clause)."
+        severity:
+          type: string
+          enum: [critical, warning, note]
+        action:
+          type: string
+          enum: [flag, strike, suggest]
+          description: "'flag' highlights only; 'strike' marks the clause deleted; 'suggest' strikes it and inserts suggestedText as a tracked insertion."
+        suggestedText:
+          type: string
+          description: Required when action is "suggest".
+        guidance:
+          type: string
+          description: Free-text explanation shown alongside the finding.
+        enabled:
+          type: boolean
+
+    Finding:
+      type: object
+      properties:
+        rule:
+          type: string
+          description: The matching rule's label.
+        severity:
+          type: string
+          enum: [critical, warning, note]
+        action:
+          type: string
+          enum: [flag, strike, suggest]
+        paragraphIndex:
+          type: integer
+          nullable: true
+          description: Null for "absent"-type findings (nothing to point to).
+        snippet:
+          type: string
+          nullable: true
+
+    LintWarning:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [broad-pattern, short-pattern, long-clause, length-mismatch]
+        message:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
