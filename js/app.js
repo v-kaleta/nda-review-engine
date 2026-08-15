@@ -11,6 +11,7 @@
   var RulesIO = NDA.RulesIO;
   var TextUtils = NDA.TextUtils;
   var SignatureLine = NDA.SignatureLine;
+  var SignatureFields = NDA.SignatureFields;
   var DEFAULT_RULES = NDA.DefaultRules;
 
   var escapeHtml = TextUtils.escapeHtml;
@@ -617,6 +618,23 @@
       var sigFmt = sigDataUrl && /^data:image\/jpeg/.test(sigDataUrl) ? 'JPEG' : 'PNG';
       var SIG_W = 160, SIG_H = 48, SIG_GAP = 4; // image sits SIG_GAP above the detected signature line
       var signaturePlaced = false;
+      var fieldsFilledNearby = false;
+
+      // If the document has its own "Name:"/"Title:"/"Date:" (or combined
+      // "Name/Title/Date:") label line near the signature line, fill it in
+      // directly rather than appending a separate floating caption below —
+      // avoids leaving that label sitting there unfilled and duplicated.
+      if (hasSignature) {
+        var sigLineIndex = -1;
+        for (var s = 1; s < finalParas.length; s++) {
+          if (SignatureLine.isSignatureLine(finalParas[s])) { sigLineIndex = s; break; }
+        }
+        if (sigLineIndex !== -1) {
+          var filled = SignatureFields.fillNearbyFields(finalParas, sigLineIndex, { name: name, title: title, dateVal: dateVal });
+          finalParas = filled.paragraphs;
+          fieldsFilledNearby = filled.anyFilled;
+        }
+      }
 
       doc.setFont('times', 'bold'); doc.setFontSize(15);
       var title0 = finalParas[0] || 'Non-Disclosure Agreement';
@@ -643,7 +661,7 @@
         }
         y += 8;
 
-        if (placingHere) {
+        if (placingHere && !fieldsFilledNearby) {
           doc.setFont('times', 'italic'); doc.setFontSize(9.5);
           doc.text(name + (title ? ' \u2014 ' + title : '') + ' \u2014 ' + dateVal, marginL, y);
           doc.setFont('times', 'normal'); doc.setFontSize(11);
