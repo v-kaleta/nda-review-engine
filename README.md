@@ -60,10 +60,15 @@ local browser storage, same as the rule set.
 A third tab exposes the same review engine as a real backend API — see `api/README.md` for
 full setup and endpoint documentation. In short: `POST /api/generate-key` issues a
 self-verifying API key (no database required), and `POST /api/review` accepts a base64-encoded
-`.docx` and a rules array, runs the identical rule-matching/lint/redlining logic server-side
-(ported from the browser build, using `@xmldom/xmldom` in place of the browser's `DOMParser`),
+`.docx` and a rules array, runs the identical rule-matching/lint/redlining logic server-side,
 and returns findings plus a genuinely redlined `.docx`. Requires deploying with an
 `API_SIGNING_SECRET` environment variable set.
+
+Note the word "identical" above is literal, not aspirational: `api/review.js` and the browser
+client both `require`/load the exact same files in `core/` (see Architecture below) — using
+`@xmldom/xmldom` in place of the browser's native `DOMParser`/`XMLSerializer`, which is a
+drop-in-compatible implementation of the same DOM interfaces this code touches. There is no
+second copy of the engine to drift out of sync.
 
 ### Client SDKs
 
@@ -86,3 +91,43 @@ other language), and a Postman collection, all tested against a live instance of
 Vanilla HTML/CSS/JS, no framework or build step. [JSZip](https://stuk.github.io/jszip/) for
 reading/writing the .docx package, [jsPDF](https://github.com/parallax/jsPDF) for the execution
 copy.
+
+## Architecture
+
+The review/redline/lint engine lives in `core/` as small, dependency-free, single-purpose
+modules — no bundler, no framework, still just `<script>` tags in the browser. Each file uses
+a tiny UMD wrapper so the *same file* works two ways with zero build step either side:
+
+- In the browser, `index.html` loads them as plain scripts (`<script src="core/...">`) and
+  each one attaches its exports to a shared `window.NDA` namespace.
+- In Node, `api/review.js` and the test suite `require('../core/...')` them directly as
+  CommonJS modules.
+
+| Module | Responsibility |
+|---|---|
+| `core/docx-parser.js` | Extracts paragraphs from a parsed `word/document.xml` |
+| `core/rules-engine.js` | Runs a rule set against paragraphs, produces findings |
+| `core/redline-builder.js` | Rewrites findings as real OOXML tracked changes (`w:del`/`w:ins`/`w:highlight`) |
+| `core/lint.js` | Second pass that flags over-broad edits in the redline itself |
+| `core/rules-io.js` | Parses/validates a firm's rules from CSV or JSON |
+| `core/default-rules.js` | The 14-rule generic starter set |
+| `core/signature-line.js` | Detects an existing signature line for PDF placement |
+| `core/text-utils.js` | `escapeHtml` / `fmtDate` |
+
+`js/app.js` is everything else: DOM rendering, event listeners, `localStorage`-backed state
+(rule set + contracts list), file upload, the signature pad, and PDF/document generation. It's
+UI orchestration only — it calls into `core/` for every actual decision the engine makes, and
+has no server-side equivalent (the API doesn't need a signature pad).
+
+### Tests
+
+```
+npm install
+npm test
+```
+
+Runs on Node's built-in test runner (`node --test`, no dependency added beyond
+`@xmldom/xmldom`, which the API already needs). Coverage is on the deterministic `core/`
+engine — rule matching, OOXML redline structure, the lint heuristics, and CSV/JSON rule
+import/validation — since that's the part correctness actually matters for. UI wiring in
+`js/app.js` isn't unit-tested; it's thin enough to be covered by manually exercising the app.
