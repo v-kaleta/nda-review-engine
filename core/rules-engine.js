@@ -11,33 +11,45 @@
   }
 })(typeof self !== 'undefined' ? self : this, function () {
 
-  function testRule(text, rule) {
+  // Default regex tester: a plain synchronous RegExp#test. Callers running
+  // untrusted patterns against untrusted text on shared infrastructure (the
+  // Node API, not the browser — see api/review.js) should pass a guarded
+  // implementation instead, since a pattern like (a+)+$ can hang this line
+  // indefinitely via catastrophic backtracking. The browser client omits
+  // this argument and gets the fast synchronous default, unchanged.
+  function defaultRegexTest(pattern, flags, text) {
+    try { return new RegExp(pattern, flags).test(text); } catch (e) { return false; }
+  }
+
+  function testRule(text, rule, regexTest) {
+    regexTest = regexTest || defaultRegexTest;
     var hit;
     if (rule.matchType === 'regex') {
-      try { hit = new RegExp(rule.pattern, 'i').test(text); } catch (e) { hit = false; }
+      hit = regexTest(rule.pattern, 'i', text);
     } else {
       hit = text.toLowerCase().indexOf(String(rule.pattern).toLowerCase()) !== -1;
     }
     return rule.matchWhen === 'absent' ? !hit : hit;
   }
 
-  function testAbsentAgainstFullText(fullText, rule) {
+  function testAbsentAgainstFullText(fullText, rule, regexTest) {
+    regexTest = regexTest || defaultRegexTest;
     if (rule.matchType === 'regex') {
-      try { return new RegExp(rule.pattern, 'i').test(fullText); } catch (e) { return false; }
+      return regexTest(rule.pattern, 'i', fullText);
     }
     return fullText.toLowerCase().indexOf(String(rule.pattern).toLowerCase()) !== -1;
   }
 
-  function runRules(paragraphs, rules) {
+  function runRules(paragraphs, rules, regexTest) {
     var findings = [];
     var fullText = paragraphs.map(function (p) { return p.text; }).join('\n');
     rules.filter(function (r) { return r.enabled; }).forEach(function (rule) {
       if (rule.matchWhen === 'absent') {
-        var present = testAbsentAgainstFullText(fullText, rule);
+        var present = testAbsentAgainstFullText(fullText, rule, regexTest);
         if (!present) findings.push({ rule: rule, paragraphIndex: null, snippet: null });
       } else {
         paragraphs.forEach(function (p) {
-          if (testRule(p.text, rule)) {
+          if (testRule(p.text, rule, regexTest)) {
             findings.push({ rule: rule, paragraphIndex: p.index, snippet: p.text.slice(0, 140) });
           }
         });

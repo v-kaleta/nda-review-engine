@@ -27,7 +27,7 @@
     return (s.trim().match(/\S+/g) || []).length;
   }
 
-  function runLint(paragraphs, rules, findings) {
+  function runLint(paragraphs, rules, findings, regexTest) {
     var warnings = [];
     var lengths = paragraphs.map(function (p) { return wordCount(p.text); }).filter(function (n) { return n > 0; });
     var medianLen = median(lengths) || 1;
@@ -35,7 +35,7 @@
 
     editRules.forEach(function (rule) {
       if (rule.matchWhen === 'absent') return;
-      var matchCount = paragraphs.filter(function (p) { return testRule(p.text, rule); }).length;
+      var matchCount = paragraphs.filter(function (p) { return testRule(p.text, rule, regexTest); }).length;
       var frac = matchCount / paragraphs.length;
       if (frac > 0.25 && matchCount > 1) {
         warnings.push({

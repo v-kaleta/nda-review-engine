@@ -43,3 +43,26 @@ Returns `{ findings, lintWarnings, redlinedDocxBase64 }`.
 - **No key expiry enforced.** `issuedAt` is embedded in the key but nothing currently
   rejects old keys — that'd be a straightforward addition if needed (reject if
   `Date.now() - issuedAt > maxAge`).
+
+## Server-side hardening on `/api/review`
+
+Unlike the browser tool, this endpoint runs caller-supplied regex patterns against
+caller-supplied documents on shared infrastructure, which is a meaningfully different
+threat model. A few protections specific to that:
+
+- **Regex execution is wall-clock bounded.** A pattern like `(a+)+$` triggers
+  catastrophic backtracking and can hang synchronous JS regex matching
+  indefinitely. Every regex test on this endpoint runs inside `vm.Script` with a
+  50ms `timeout`, which forcibly aborts execution if exceeded — Node's built-in
+  mechanism for this, no extra dependency. A timeout (or an invalid pattern) both
+  fail closed as "no match," never as a thrown error or a hang. The browser tool
+  doesn't need this — a slow pattern there only affects the user's own tab.
+- **`docxBase64` has a size cap** (15MB of base64, ~11MB decoded) enforced before
+  the payload is ever decoded or handed to JSZip, as a guard against memory
+  exhaustion from an oversized upload or a zip bomb.
+- **A missing `word/document.xml` is checked explicitly** and returns a clean 400
+  instead of throwing when a non-`.docx` (or corrupted) zip is uploaded.
+- **Error responses never include `err.message`.** The real error is logged
+  server-side via `console.error` for debugging; the client only ever sees a fixed,
+  generic message, so internal paths, library versions, or other implementation
+  details can't leak through an error response.
